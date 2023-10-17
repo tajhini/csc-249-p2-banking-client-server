@@ -3,9 +3,9 @@
 # Automated Teller Machine (ATM) client application.
 
 import socket
+import re
 
-HOST = "127.0.0.1"      # The bank server's IP address
-PORT = 65432            # The port used by the bank server
+         
 
 ##########################################################
 #                                                        #
@@ -18,7 +18,7 @@ PORT = 65432            # The port used by the bank server
 def send_to_server(sock, msg):
     """ Given an open socket connection (sock) and a string msg, send the string to the server. """
     # TODO make sure this works as needed
-    return sock.sendall(msg.encode('utf-8'))
+    return sock.send(msg.encode('utf-8'))
 
 def get_from_server(sock):
     """ Attempt to receive a message from the active connection. Block until message is received. """
@@ -28,15 +28,40 @@ def get_from_server(sock):
 
 def login_to_server(sock, acct_num, pin):
     """ Attempt to login to the bank server. Pass acct_num and pin, get response, parse and check whether login was successful. """
-    validated = 0
+    account_info = str(acct_num) + "|" + str(pin)
+    send_to_server(sock, account_info)
+    # validation = get_from_server(sock)
+    # if (validation == "true"):
+    #     validated = True
+    # else:
+    #     validated = False
+    validated = True
     # TODO: Write this code!
     return validated
 
 def get_login_info():
     """ Get info from customer. TODO: Validate inputs, ask again if given invalid input. """
-    acct_num = input("Please enter your account number: ")
-    pin = input("Please enter your four digit PIN: ")
+    #Validates acct_num to the regex
+    # while True:
+    #         acct_num_pattern = r"[a-z]{2}-\d{5}"
+    #         acct_num = input("Please enter your account number: ")
+    #         acct_num_match = re.search(acct_num_pattern, acct_num)
+    #         if (acct_num_match):
+    #            break
+    #         else:
+    #             print("Invalid Input. Try Again")
+    # #Validates pin to the regex
+    # while True:
+    #     pin_pattern = r"\d{4}"
+    #     pin = input("Please enter your four digit PIN: ")
+    #     pin_num_match = re.search(pin_pattern, pin)
+    #     if (pin_num_match):
+    #        break
+    #     else:
+    #         print("Invalid Input. Try Again")
+    send_to_server(sock, input("Please enter your account number: "))
     return acct_num, pin
+  
 
 def process_deposit(sock, acct_num):
     """ TODO: Write this code. """
@@ -99,9 +124,14 @@ def run_atm_core_loop(sock):
 
 def run_network_client():
     """ This function connects the client to the server and runs the main loop. """
+    # The bank server's IP address
+    HOST = socket.gethostbyname(socket.gethostname())
+    # The port used by the bank server
+    PORT = 65432   
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((HOST, PORT))
+            print(get_from_server(s))
             run_atm_core_loop(s)
     except Exception as e:
         print(f"Unable to connect to the banking server - exiting...")
