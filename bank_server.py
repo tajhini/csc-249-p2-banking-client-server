@@ -125,7 +125,7 @@ def load_all_accounts(acct_file = "accounts.txt"):
                 # comment line, no error, ignore
                 continue
             # convert all alpha characters to lowercase and remove whitespace, then split on comma
-            acct_data = line.lower().strip().split(',')
+            acct_data = line.lower().replace(" ", "").split(',')
             if len(acct_data) != 3:
                 print("ERROR: invalid entry in account file: '{line}' - IGNORED")
                 continue
@@ -140,6 +140,28 @@ def load_all_accounts(acct_file = "accounts.txt"):
 # TODO: THIS SECTION NEEDS TO BE WRITTEN!!               #
 #                                                        #
 ##########################################################
+
+def validate_user_info(client_connection):
+    account_info = client_connection.recv(1024)
+    #decoded account info
+    account_info = account_info.decode("utf-8") # convert bytes to string
+    #account number and pin in a list.
+    account_info = account_info.split("|")
+    account_num = account_info[0]
+    account_pin = account_info[1]
+    account = get_acct(account_num)
+
+    if (account != False):
+        if (account.acct_pin == account_pin):
+            client_connection.send(str(1).encode("utf-8"))
+            return True
+        else:
+            client_connection.send(str(2).encode("utf-8"))
+            return False
+    else:
+        client_connection.send(str(3).encode("utf-8"))
+        return False
+
 
 def run_network_server():
     # """ This and all supporting code needs to be written! """
@@ -179,21 +201,20 @@ def run_network_server():
             client_conn.send(instructions.encode("utf-8"))
 
             while True:
-                account_info = client_conn.recv(1024)
-                #decoded account info
-                account_info = account_info.decode("utf-8") # convert bytes to string
-                #account number and pin in a list.
-                account_info = account_info.split("|")
-                account = get_acct(account_info[0])
-                if (account != False):
-                    print(account.acct_number)
-                #     client_conn.send("true".encode("utf-8"))
-                # else:
-                #     client_conn.send("false".encode("utf-8"))
-            
+                if (validate_user_info(client_conn)):
+                    client_transac = client_conn.recv(1024)
+                    client_transac = client_transac.decode("utf-8")
 
-                if (account_info == "Close"):
+                    # if client_transac == "d":
+
+                    # elif (client_transac == "w"):
+
+                    # elif (client_transac == "x"):
+                    
+                    # else:
+
                     break
+
                
     
             # Closes connection socket with the client
