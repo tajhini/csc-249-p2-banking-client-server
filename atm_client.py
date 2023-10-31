@@ -60,26 +60,29 @@ def get_login_info():
 def process_deposit(sock, acct_num):
     """ TODO: Write this code. """
     bal = get_acct_balance(sock, acct_num)
-    amt = input("How much would you like to deposit? (You have ${bal} available)")
+    amt = (input(f"How much would you like to deposit? (You have ${bal} available)"))
     # TODO communicate with the server to request the deposit, check response for success or failure.
+    send_to_server(sock, amt)
+    new_bal = get_from_server(sock)
     print("Deposit transaction completed.")
-    return
+    return new_bal
 
 def get_acct_balance(sock, acct_num):
-    """ TODO: Ask the server for current account balance. """
-    #get_from_server(sock)
-    #send_to_server()
-    bal = 0.0
-    # TODO code needed here, to get balance from server then return it
+    """ TODO: Ask the server for current account balance. """ #finsihed
+    get_from_server(sock)
+    send_to_server(sock, acct_num)
+    bal = get_from_server(sock);
     return bal
 
 def process_withdrawal(sock, acct_num):
     """ TODO: Write this code. """
     bal = get_acct_balance(sock, acct_num)
-    amt = input(f"How much would you like to withdraw? (You have ${bal} available)")
+    amt = (input(f"How much would you like to withdraw? (You have ${bal} available) "))
+    send_to_server(sock, amt)
+    new_bal = get_from_server(sock)
     # TODO communicate with the server to request the withdrawal, check response for success or failure.
     print("Withdrawal transaction completed.")
-    return
+    return new_bal
 
 def process_customer_transactions(sock, acct_num):
     """ Ask customer for a transaction, communicate with server. TODO: Revise as needed. """
@@ -93,11 +96,17 @@ def process_customer_transactions(sock, acct_num):
             # if customer wants to exit, break out of the loop
             break
         elif req == 'd':
-            process_deposit(sock, acct_num)
+            send_to_server(sock, "5")
+            bal = process_deposit(sock, acct_num)
+            print(f"Your balance is: ${bal}")
         elif req == 'b':
-            get_acct_balance(sock, acct_num)
+            send_to_server(sock, "6")
+            bal = (get_acct_balance(sock, acct_num))
+            print(f"Your balance is: ${bal}")
         else:
-            process_withdrawal(sock, acct_num)
+            send_to_server(sock, "7")
+            bal = process_withdrawal(sock, acct_num)
+            print(f"Your balance is: ${bal}")
 
 def run_atm_core_loop(sock):
     """ Given an active network connection to the bank server, run the core business loop. """

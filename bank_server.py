@@ -202,16 +202,46 @@ def run_network_server():
 
             while True:
                 if (validate_user_info(client_conn)):
-                    client_transac = client_conn.recv(1024)
-                    client_transac = client_transac.decode("utf-8")
+                    while True:
+                        client_request = client_conn.recv(1024)
+                        client_request = client_request.decode("utf-8")
+                        client_conn.send("10".encode("utf-8"))
 
-                    # if client_transac == "d":
+                        #account balance
+                        if (client_request == "6"):
+                           client_acct_num = client_conn.recv(1024)
+                           client_acct_num = client_acct_num.decode("utf-8")
+                           client_acct = get_acct(client_acct_num)
+                           if client_acct != False:
+                              client_bal = str(client_acct.acct_balance)
+                              client_conn.sendall(client_bal.encode("utf-8"))
+                        #deposit
+                        elif (client_request == "5"):
+                            client_acct_num = client_conn.recv(1024)
+                            client_acct_num = client_acct_num.decode("utf-8")
+                            client_acct = get_acct(client_acct_num)
+                            if client_acct != False:
+                              client_bal = str(client_acct.acct_balance)
+                              client_conn.send(client_bal.encode("utf-8"))
+                              client_deposit = client_conn.recv(1024)
+                              client_deposit = float(client_deposit.decode("utf-8"))
+                              client_acct, result, new_bal = (client_acct.deposit(client_deposit))
 
-                    # elif (client_transac == "w"):
+                              client_conn.sendall(str(new_bal).encode("utf-8"))
 
-                    # elif (client_transac == "x"):
-                    
-                    # else:
+                        #withdraw
+                        elif(client_request == "7"):
+                            client_acct_num = client_conn.recv(1024)
+                            client_acct_num = client_acct_num.decode("utf-8")
+                            client_acct = get_acct(client_acct_num)
+                            if client_acct != False:
+                              client_bal = str(client_acct.acct_balance)
+                              client_conn.send(client_bal.encode("utf-8"))
+                              client_withdraw = client_conn.recv(1024)
+                              client_withdraw = float(client_withdraw.decode("utf-8"))
+                              client_acct, result, new_bal = (client_acct.withdraw(client_withdraw))
+                              client_conn.sendall(str(new_bal).encode("utf-8"))
+
 
                     break
 
