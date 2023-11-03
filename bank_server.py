@@ -151,16 +151,20 @@ def validate_user_info(client_connection):
     account_pin = account_info[1]
     account = get_acct(account_num)
 
+
+    #make this return account number too
     if (account != False):
         if (account.acct_pin == account_pin):
             client_connection.send(str(1).encode("utf-8"))
-            return True
+            return 1
         else:
+            #Account number and PIN do not match. Terminating ATM session.
             client_connection.send(str(2).encode("utf-8"))
-            return False
+            return 2
     else:
+        #Account doesn't exist. Terminating ATM session.
         client_connection.send(str(3).encode("utf-8"))
-        return False
+        return 3
 
 
 def run_network_server():
@@ -201,20 +205,13 @@ def run_network_server():
             client_conn.send(instructions.encode("utf-8"))
 
             while True:
-                if (validate_user_info(client_conn)):
+                if (validate_user_info(client_conn) == 1):
                     while True:
                         client_request = client_conn.recv(1024)
                         client_request = client_request.decode("utf-8")
                         print(f"Request recieved from client.")
                         client_conn.send("10".encode("utf-8"))
                         
-                        def acct_bal():
-                           client_acct_num = client_conn.recv(1024)
-                           client_acct_num = client_acct_num.decode("utf-8")
-                           client_acct = get_acct(client_acct_num)
-                           if client_acct != False:
-                              client_bal = str(client_acct.acct_balance)
-                              client_conn.send(client_bal.encode("utf-8"))
                         #account balance
                         if (client_request == "6"):
                            client_acct_num = client_conn.recv(1024)
@@ -277,7 +274,9 @@ def run_network_server():
                                         continue
                         elif(client_request == "015"):
                             break
-                else:   
+                elif validate_user_info(client_conn) == 2 :   
+                    break
+                elif validate_user_info(client_conn) == 3 :
                     break
             # Closes connection socket with the client
             client_conn.close()
@@ -346,3 +345,10 @@ if __name__ == "__main__":
     #demo_bank_server()
     run_network_server()
     print("bank server exiting...")
+
+    #send things in one message
+    # L D/B/W []
+    #the begining indicates tupe and then if the length is differnt lengths then differnt
+    # if none of the opitions then you know its wrong
+
+    #ask each time.

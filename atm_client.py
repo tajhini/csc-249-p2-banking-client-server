@@ -5,8 +5,6 @@
 import socket
 import re
 
-         
-
 ##########################################################
 #                                                        #
 # ATM Client Network Operations                          #
@@ -169,3 +167,5 @@ if __name__ == "__main__":
     print("Welcome to the ACME ATM Client, where customer satisfaction is our goal!")
     run_network_client()
     print("Thanks for banking with us! Come again soon!!")
+
+    #does say over and over what the account number is. saves the account number once
