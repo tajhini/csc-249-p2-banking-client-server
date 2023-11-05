@@ -7,6 +7,7 @@ import socket
 import selectors
 import threading
 import sys
+import re
 
 # HOST = "127.0.0.1"      # Standard loopback interface address (localhost)
 # PORT = 65432            # Port to listen on (non-privileged ports are > 1023)
@@ -144,27 +145,31 @@ def load_all_accounts(acct_file = "accounts.txt"):
 def validate_user_info(client_connection):
     account_info = client_connection.recv(1024)
     #decoded account info
+    acct_info_format = r"[a-z]{2}-\d{5}[|]\d{4}"
+   
     account_info = account_info.decode("utf-8") # convert bytes to string
+    pattern_match = re.search(acct_info_format, account_info)
     #account number and pin in a list.
-    account_info = account_info.split("|")
-    account_num = account_info[0]
-    account_pin = account_info[1]
-    account = get_acct(account_num)
-
-
+    if (pattern_match):
+        account_info = account_info.split("|")
+        account_num = account_info[0]
+        account_pin = account_info[1]
+        account = get_acct(account_num)
     #make this return account number too
-    if (account != False):
-        if (account.acct_pin == account_pin):
-            client_connection.send(str(1).encode("utf-8"))
-            return 1
+        if (account != False):
+            if (account.acct_pin == account_pin):
+                client_connection.send(str(1).encode("utf-8"))
+                return 1, account_num
+            else:
+                #Account number and PIN do not match. Terminating ATM session.
+                client_connection.send(str(2).encode("utf-8"))
+                return 2, 0
         else:
-            #Account number and PIN do not match. Terminating ATM session.
-            client_connection.send(str(2).encode("utf-8"))
-            return 2
+            #Account doesn't exist. Terminating ATM session.
+            client_connection.send(str(3).encode("utf-8"))
+            return 3, 0
     else:
-        #Account doesn't exist. Terminating ATM session.
-        client_connection.send(str(3).encode("utf-8"))
-        return 3
+        return 4, 0
 
 
 def run_network_server():
@@ -205,7 +210,8 @@ def run_network_server():
             client_conn.send(instructions.encode("utf-8"))
 
             while True:
-                if (validate_user_info(client_conn) == 1):
+                code, client_acct_num = validate_user_info(client_conn)
+                if (code == 1):
                     while True:
                         client_request = client_conn.recv(1024)
                         client_request = client_request.decode("utf-8")
@@ -214,16 +220,12 @@ def run_network_server():
                         
                         #account balance
                         if (client_request == "6"):
-                           client_acct_num = client_conn.recv(1024)
-                           client_acct_num = client_acct_num.decode("utf-8")
                            client_acct = get_acct(client_acct_num)
                            if client_acct != False:
                               client_bal = str(client_acct.acct_balance)
                               client_conn.send(client_bal.encode("utf-8"))
                         #deposit
                         elif (client_request == "5"):
-                            client_acct_num = client_conn.recv(1024)
-                            client_acct_num = client_acct_num.decode("utf-8")
                             client_acct = get_acct(client_acct_num)
                             if client_acct != False:
                                 client_bal = str(client_acct.acct_balance)
@@ -247,8 +249,6 @@ def run_network_server():
     
                         #withdraw
                         elif(client_request == "7"):
-                            client_acct_num = client_conn.recv(1024)
-                            client_acct_num = client_acct_num.decode("utf-8")
                             client_acct = get_acct(client_acct_num)
                             if client_acct != False:
                                 client_bal = str(client_acct.acct_balance)

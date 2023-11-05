@@ -27,7 +27,7 @@ def get_from_server(sock):
 def login_to_server(sock, acct_num, pin):
     """ Attempt to login to the bank server. Pass acct_num and pin, get response, parse and check whether login was successful. """
     # TODO: Write this code!
-    account_info = str(acct_num) + "|" + str(pin)
+    account_info = str(acct_num) + "|" + str(pin) #change thisss.
     send_to_server(sock, account_info)
     validated = int(get_from_server(sock))
     return validated
@@ -40,7 +40,7 @@ def get_login_info():
             acct_num = input("Please enter your account number: ")
             acct_num_match = re.search(acct_num_pattern, acct_num)
             if (acct_num_match):
-               break
+                break
             else:
                 print("Invalid Input. Try Again")
     #Validates pin to the regex
@@ -53,11 +53,13 @@ def get_login_info():
         else:
             print("Invalid Input. Try Again")
     return acct_num, pin
-  
 
-def process_deposit(sock, acct_num):
+
+
+
+def process_deposit(sock):
     """ TODO: Write this code. """
-    bal = get_acct_balance(sock, acct_num)
+    bal = get_acct_balance(sock)
     while True:
         amt = (input(f"How much would you like to deposit? (You have ${bal} available)"))
         # TODO communicate with the server to request the deposit, check response for success or failure.
@@ -72,17 +74,16 @@ def process_deposit(sock, acct_num):
             break
     return
 
-def get_acct_balance(sock, acct_num):
+def get_acct_balance(sock):
     """ TODO: Ask the server for current account balance. """ #finsihed
     get_from_server(sock)
-    send_to_server(sock, acct_num)
     bal = get_from_server(sock);
     return bal
 
-def process_withdrawal(sock, acct_num):
+def process_withdrawal(sock):
     """ TODO: Write this code. """
      # TODO communicate with the server to request the withdrawal, check response for success or failure.
-    bal = get_acct_balance(sock, acct_num)
+    bal = get_acct_balance(sock)
     while True:
         amt = (input(f"How much would you like to withdraw? (You have ${bal} available) "))
         send_to_server(sock, amt)
@@ -99,7 +100,7 @@ def process_withdrawal(sock, acct_num):
             break
     return 
 
-def process_customer_transactions(sock, acct_num):
+def process_customer_transactions(sock):
     """ Ask customer for a transaction, communicate with server. TODO: Revise as needed. """
     while True:
         print("Select a transaction. Enter 'd' to deposit, 'w' to withdraw, or 'b' to get balance, or 'x' to exit.")
@@ -112,32 +113,33 @@ def process_customer_transactions(sock, acct_num):
             break
         elif req == 'd':
             send_to_server(sock, "5")
-            process_deposit(sock, acct_num)
+            process_deposit(sock)
             # print(f"Your balance is: ${bal}")
         elif req == 'b':
             send_to_server(sock, "6")
-            bal = (get_acct_balance(sock, acct_num))
+            bal = (get_acct_balance(sock))
             print(f"Your balance is: ${bal}")
         else:
             send_to_server(sock, "7")
-            process_withdrawal(sock, acct_num)
+            process_withdrawal(sock)
             # print(f"Your balance is: ${bal}")
 
 def run_atm_core_loop(sock):
     """ Given an active network connection to the bank server, run the core business loop. """
-    acct_num, pin = get_login_info()
-    validated = login_to_server(sock, acct_num, pin)
-    if validated == 1:
-        print("Thank you, your credentials have been validated.")
-        process_customer_transactions(sock, acct_num)
-        print("ATM session terminating.")
-        return True
-    elif validated == 2:
-        print("Account number and PIN do not match. Terminating ATM session.")
-        return False
-    elif validated == 3:
-        print("Account doesn't exist. Terminating ATM session.")
-        return False
+    while True:
+        acct_num, pin = get_login_info()
+        validated = login_to_server(sock, acct_num, pin)
+        if validated == 1:
+            print("Thank you, your credentials have been validated.")
+            process_customer_transactions(sock)
+            print("ATM session terminating.")
+            return True
+        elif validated == 2:
+            print("Account number and PIN do not match. Terminating ATM session.")
+            continue
+        elif validated == 3:
+            print("Account doesn't exist. Terminating ATM session.")
+            continue
 
     
 
