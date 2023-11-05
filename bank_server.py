@@ -61,10 +61,10 @@ class BankAccount:
     def deposit(self, amount):
         """ Make a deposit. The value of amount must be valid for bank transactions. If amount is valid, update the acct_balance.
         This method returns three values: self, success_code, current balance.
-        Success codes are: 0: valid result; 1: invalid amount given. """
-        result_code = 0
+        Success codes are: 020: valid result; 021: invalid amount given. """
+        result_code = "020"
         if not amountIsValid(amount):
-            result_code = 1
+            result_code = "021"
         else:
             # valid amount, so add it to balance and set succes_code 1
             self.acct_balance += amount
@@ -73,14 +73,14 @@ class BankAccount:
     def withdraw(self, amount):
         """ Make a withdrawal. The value of amount must be valid for bank transactions. If amount is valid, update the acct_balance.
         This method returns three values: self, success_code, current balance.
-        Success codes are: 0: valid result; 1: invalid amount given; 2: attempted overdraft. """
-        result_code = 0
+        Success codes are: 020: valid result; 021: invalid amount given; 022: attempted overdraft. """
+        result_code = "020"
         if not amountIsValid(amount):
             # invalid amount, return error 
-            result_code = 1
+            result_code = "021"
         elif amount > self.acct_balance:
             # attempted overdraft
-            result_code = 2
+            result_code = "022"
         else:
             # all checks out, subtract amount from the balance
             self.acct_balance -= amount
@@ -138,16 +138,17 @@ def load_all_accounts(acct_file = "accounts.txt"):
 #                                                        #
 # Bank Server Network Operations                         #
 #                                                        #
-# TODO: THIS SECTION NEEDS TO BE WRITTEN!!               #
+#                                                        #
 #                                                        #
 ##########################################################
 
 def validate_user_info(client_connection):
+    """ Validates the account information is received in the correct format. Validates the account number an daccount pin in the correct format. """
+    # receives account information; account number and account pin split by "|"
     account_info = client_connection.recv(1024)
-    #decoded account info
     acct_info_format = r"[a-z]{2}-\d{5}[|]\d{4}"
    
-    account_info = account_info.decode("utf-8") # convert bytes to string
+    account_info = account_info.decode("utf-8")
     pattern_match = re.search(acct_info_format, account_info)
     #account number and pin in a list.
     if (pattern_match):
@@ -158,27 +159,21 @@ def validate_user_info(client_connection):
     #make this return account number too
         if (account != False):
             if (account.acct_pin == account_pin):
-                client_connection.send(str(1).encode("utf-8"))
-                return 1, account_num
+                client_connection.send("010".encode("utf-8"))
+                return "201", account_num
             else:
-                #Account number and PIN do not match. Terminating ATM session.
-                client_connection.send(str(2).encode("utf-8"))
-                return 2, 0
+                #Account number and PIN do not match.
+                client_connection.send("011".encode("utf-8"))
+                return "202", 0
         else:
-            #Account doesn't exist. Terminating ATM session.
-            client_connection.send(str(3).encode("utf-8"))
-            return 3, 0
+            #Account doesn't exist.
+            client_connection.send("012".encode("utf-8"))
+            return "203", 0
     else:
-        return 4, 0
+        return "204", 0
 
 
 def run_network_server():
-    # """ This and all supporting code needs to be written! """
-
-
-    # print("Bank server network functions not implemented!!")
-    # return
-   
     """ Runs the server.
     """
     # Gets the ip address of the local machine.
@@ -193,90 +188,96 @@ def run_network_server():
     print(f"Server is starting - listening for connections at IP, {host}, and port, {port}")
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as serv_sock:
-
             # Binds the  socket to the specified address and port above
             serv_sock.bind((host, port))
-
             # Listening for incoming connections
             serv_sock.listen()
             print(f"Listening on {host}:{port}")
-
             # Accepting any incoming connections
             client_conn, client_addy = serv_sock.accept()
             print(f"Accepted connection from {client_conn} at {client_addy}.")
-
             # Sends instructions to the client
             instructions = "You have connected to the ATM Server."
             client_conn.send(instructions.encode("utf-8"))
-
+            #Core server loop
             while True:
+                # Validates user information and returns success/failure codes
                 code, client_acct_num = validate_user_info(client_conn)
-                if (code == 1):
+                # Client account information is successfully validated
+                if (code == "201"):
                     while True:
                         client_request = client_conn.recv(1024)
                         client_request = client_request.decode("utf-8")
-                        print(f"Request recieved from client.")
-                        client_conn.send("10".encode("utf-8"))
-                        
-                        #account balance
-                        if (client_request == "6"):
+                        print(f"Request successfully recieved from client.")
+                        client_conn.send("030".encode("utf-8"))
+                        # Client request: Balance
+                        if (client_request == "120"):
                            client_acct = get_acct(client_acct_num)
                            if client_acct != False:
                               client_bal = str(client_acct.acct_balance)
                               client_conn.send(client_bal.encode("utf-8"))
-                        #deposit
-                        elif (client_request == "5"):
+                        # Client request: Deposit
+                        elif (client_request == "110"):
                             client_acct = get_acct(client_acct_num)
                             if client_acct != False:
                                 client_bal = str(client_acct.acct_balance)
                                 client_conn.send(client_bal.encode("utf-8"))
+                                # Validates client deposit amount
                                 while True:
                                     client_deposit = client_conn.recv(1024)
                                     client_deposit = (client_deposit.decode("utf-8"))
                                     if (client_deposit.isnumeric()):
                                         client_acct, result, new_bal = (client_acct.deposit(float(client_deposit)))
-                                        if (result == 0):
+                                        # Deposit amount validated; success
+                                        if (result == "020"):
                                             client_conn.sendall(str(new_bal).encode("utf-8"))
                                             break
-                                        elif(result == 1):
-                                            #send 10 for fialure incorrect format thing
-                                            client_conn.sendall("010".encode("utf-8"))
+                                        # Deposit amount validated; failure
+                                        elif(result == "021"):
+                                            # Failure by result of incorrect deposit amount format
+                                            client_conn.sendall(result.encode("utf-8"))
                                             continue
                                     else: 
-                                        #letters sent
-                                        client_conn.sendall("010".encode("utf-8"))
+                                        # Deposit amount != numbers
+                                        client_conn.sendall("024".encode("utf-8"))
                                         continue
-    
-                        #withdraw
-                        elif(client_request == "7"):
+                        # Client request: Withdraw
+                        elif(client_request == "130"):
                             client_acct = get_acct(client_acct_num)
                             if client_acct != False:
                                 client_bal = str(client_acct.acct_balance)
                                 client_conn.send(client_bal.encode("utf-8"))
+                                # Validates client withdrawal amount
                                 while True:
                                     client_withdraw = client_conn.recv(1024)
                                     client_withdraw = (client_withdraw.decode("utf-8"))
                                     if (client_withdraw.isnumeric()):
                                         client_acct, result, new_bal = (client_acct.withdraw(float(client_withdraw)))
-                                        if (result == 0):
+                                        # Withdrawal amount validated; success
+                                        if (result == "020"):
                                             client_conn.sendall(str(new_bal).encode("utf-8"))
                                             break
-                                        elif(result == 1):
-                                            #send 10 for fialure incorrect format thing
-                                            client_conn.sendall("010".encode("utf-8"))
+                                        # Withdrawal amount validated; failure
+                                        elif(result == "021"):
+                                            # Failure by result of incorrect withdrawl amount format
+                                            client_conn.sendall(result.encode("utf-8"))
                                             continue
-                                        elif(result == 2):
-                                            #overdraft
-                                            client_conn.sendall("012".encode("utf-8"))
+                                        elif(result == "022"):
+                                            # Failure by overdraft request
+                                            client_conn.sendall(result.encode("utf-8"))
                                     else: 
-                                        #letters sent
-                                        client_conn.sendall("010".encode("utf-8"))
+                                        # Deposit amount != numbers
+                                        client_conn.sendall("024".encode("utf-8"))
                                         continue
-                        elif(client_request == "015"):
+                        # Client exits ATM
+                        elif(client_request == "140"):
                             break
-                elif validate_user_info(client_conn) == 2 :   
                     break
-                elif validate_user_info(client_conn) == 3 :
+                elif code == "202" : 
+                    print("The account number did not match the pin.")
+                    break
+                elif code == "203" :
+                    print("The account does not exist.")
                     break
             # Closes connection socket with the client
             client_conn.close()
@@ -288,7 +289,6 @@ def run_network_server():
         sys.exit()
 
 
-#think about how the client could tell it a differnt account number
 ##########################################################
 #                                                        #
 # Bank Server Demonstration                              #
@@ -346,9 +346,4 @@ if __name__ == "__main__":
     run_network_server()
     print("bank server exiting...")
 
-    #send things in one message
-    # L D/B/W []
-    #the begining indicates tupe and then if the length is differnt lengths then differnt
-    # if none of the opitions then you know its wrong
-
-    #ask each time.
+  

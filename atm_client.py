@@ -15,21 +15,18 @@ import re
 
 def send_to_server(sock, msg):
     """ Given an open socket connection (sock) and a string msg, send the string to the server. """
-    # TODO make sure this works as needed
     return sock.send(msg.encode('utf-8'))
 
 def get_from_server(sock):
     """ Attempt to receive a message from the active connection. Block until message is received. """
-    # TODO make sure this works as needed
     msg = sock.recv(1024)
     return msg.decode('utf-8')
 
 def login_to_server(sock, acct_num, pin):
     """ Attempt to login to the bank server. Pass acct_num and pin, get response, parse and check whether login was successful. """
-    # TODO: Write this code!
     account_info = str(acct_num) + "|" + str(pin) #change thisss.
     send_to_server(sock, account_info)
-    validated = int(get_from_server(sock))
+    validated = (get_from_server(sock))
     return validated
 
 def get_login_info():
@@ -58,50 +55,46 @@ def get_login_info():
 
 
 def process_deposit(sock):
-    """ TODO: Write this code. """
+    """ """
     bal = get_acct_balance(sock)
     while True:
-        amt = (input(f"How much would you like to deposit? (You have ${bal} available)"))
-        # TODO communicate with the server to request the deposit, check response for success or failure.
+        amt = (input(f"How much would you like to deposit? (You have ${bal} available) "))
         send_to_server(sock, amt)
         new_bal = get_from_server(sock)
-        if (new_bal == "010"):
+        if (new_bal == "021"):
             print("Incorrect format entered.")
             continue
         else:
             print("Deposit transaction completed.")
-            print(f"Your balance is: ${new_bal}")
+            print(f"Your balance is: ${round(new_bal, 2)}")
             break
     return
 
 def get_acct_balance(sock):
-    """ TODO: Ask the server for current account balance. """ #finsihed
     get_from_server(sock)
     bal = get_from_server(sock);
     return bal
 
 def process_withdrawal(sock):
-    """ TODO: Write this code. """
-     # TODO communicate with the server to request the withdrawal, check response for success or failure.
     bal = get_acct_balance(sock)
     while True:
         amt = (input(f"How much would you like to withdraw? (You have ${bal} available) "))
         send_to_server(sock, amt)
         new_bal = get_from_server(sock)
-        if (new_bal == "010"):
+        if (new_bal == "021"):
             print("Incorrect format entered.")
             continue
-        elif (new_bal == "012"):
+        elif (new_bal == "023"):
             print("Insufficient Funds.")
             break
         else: 
             print("Withdrawal transaction completed.")
-            print(f"Your balance is: ${new_bal}")
+            print(f"Your balance is: ${round(new_bal, 2)}")
             break
     return 
 
 def process_customer_transactions(sock):
-    """ Ask customer for a transaction, communicate with server. TODO: Revise as needed. """
+    """ Ask customer for a transaction, communicate with server."""
     while True:
         print("Select a transaction. Enter 'd' to deposit, 'w' to withdraw, or 'b' to get balance, or 'x' to exit.")
         req = input("Your choice? ").lower()
@@ -110,35 +103,35 @@ def process_customer_transactions(sock):
             continue
         if req == 'x':
             # if customer wants to exit, break out of the loop
+            send_to_server(sock, "140")
             break
         elif req == 'd':
-            send_to_server(sock, "5")
+            send_to_server(sock, "110")
             process_deposit(sock)
-            # print(f"Your balance is: ${bal}")
+
         elif req == 'b':
-            send_to_server(sock, "6")
+            send_to_server(sock, "120")
             bal = (get_acct_balance(sock))
-            print(f"Your balance is: ${bal}")
+            print(f"Your balance is: ${round(bal, 2)}")
         else:
-            send_to_server(sock, "7")
+            send_to_server(sock, "130")
             process_withdrawal(sock)
-            # print(f"Your balance is: ${bal}")
 
 def run_atm_core_loop(sock):
     """ Given an active network connection to the bank server, run the core business loop. """
     while True:
         acct_num, pin = get_login_info()
         validated = login_to_server(sock, acct_num, pin)
-        if validated == 1:
+        if validated == "010":
             print("Thank you, your credentials have been validated.")
             process_customer_transactions(sock)
             print("ATM session terminating.")
             return True
-        elif validated == 2:
-            print("Account number and PIN do not match. Terminating ATM session.")
+        elif validated == "011":
+            print("Account number and PIN do not match. Retry login.")
             continue
-        elif validated == 3:
-            print("Account doesn't exist. Terminating ATM session.")
+        elif validated == "012":
+            print("Account doesn't exist. Retry login.")
             continue
 
     
