@@ -66,7 +66,7 @@ def process_deposit(sock):
             continue
         else:
             print("Deposit transaction completed.")
-            print(f"Your balance is: ${round(new_bal, 2)}")
+            print(f"Your balance is: ${round(float(new_bal), 2)}")
             break
     return
 
@@ -89,7 +89,7 @@ def process_withdrawal(sock):
             break
         else: 
             print("Withdrawal transaction completed.")
-            print(f"Your balance is: ${round(new_bal, 2)}")
+            print(f"Your balance is: ${round(float(new_bal), 2)}")
             break
     return 
 
@@ -112,7 +112,7 @@ def process_customer_transactions(sock):
         elif req == 'b':
             send_to_server(sock, "120")
             bal = (get_acct_balance(sock))
-            print(f"Your balance is: ${round(bal, 2)}")
+            print(f"Your balance is: ${round(float(bal), 2)}")
         else:
             send_to_server(sock, "130")
             process_withdrawal(sock)
@@ -157,6 +157,7 @@ def run_network_client():
             run_atm_core_loop(s)
     except Exception as e:
         print(f"Unable to connect to the banking server - exiting...")
+        print(e)
 
 if __name__ == "__main__":
     print("Welcome to the ACME ATM Client, where customer satisfaction is our goal!")
