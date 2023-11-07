@@ -208,78 +208,85 @@ def run_network_server():
                     while True:
                         client_request = client_conn.recv(1024)
                         client_request = client_request.decode("utf-8")
-                        print(f"Request successfully recieved from client.")
-                        client_conn.send("030".encode("utf-8"))
-                        # Client request: Balance
-                        if (client_request == "120"):
-                           client_acct = get_acct(client_acct_num)
-                           if client_acct != False:
-                              client_bal = str(client_acct.acct_balance)
-                              client_conn.send(client_bal.encode("utf-8"))
-                        # Client request: Deposit
-                        elif (client_request == "110"):
-                            client_acct = get_acct(client_acct_num)
-                            if client_acct != False:
-                                client_bal = str(client_acct.acct_balance)
-                                client_conn.send(client_bal.encode("utf-8"))
-                                # Validates client deposit amount
-                                while True:
-                                    client_deposit = client_conn.recv(1024)
-                                    client_deposit = (client_deposit.decode("utf-8"))
-                                    if (client_deposit.isnumeric()):
-                                        client_acct, result, new_bal = (client_acct.deposit(float(client_deposit)))
-                                        # Deposit amount validated; success
-                                        if (result == "020"):
-                                            client_conn.sendall(str(new_bal).encode("utf-8"))
-                                            break
-                                        # Deposit amount validated; failure
-                                        elif(result == "021"):
-                                            # Failure by result of incorrect deposit amount format
-                                            client_conn.sendall(result.encode("utf-8"))
-                                            continue
-                                    else: 
-                                        # Deposit amount != numbers
-                                        client_conn.sendall("024".encode("utf-8"))
-                                        continue
+                        if (len(client_request) > 3) :
+                            client_request_regex = r"\d{3}|\d+"
+                            client_request_match = re.search(client_request_regex, client_request)
+                            if (client_request_match):
+                                print(f"Request successfully recieved from client.")
+                                client_conn.send("030".encode("utf-8"))
+                            # Client request: Balance
+                                if (client_request == "120"):
+                                    client_acct = get_acct(client_acct_num)
+                                    if client_acct != False:
+                                        client_bal = str(client_acct.acct_balance)
+                                        client_conn.send(client_bal.encode("utf-8"))
+                                    # Client request: Deposit
+                                    elif (client_request == "110"):
+                                        client_acct = get_acct(client_acct_num)
+                                        if client_acct != False:
+                                            client_bal = str(client_acct.acct_balance)
+                                            client_conn.send(client_bal.encode("utf-8"))
+                                            # Validates client deposit amount
+                                            while True:
+                                                client_deposit = client_conn.recv(1024)
+                                                client_deposit = (client_deposit.decode("utf-8"))
+                                                if (client_deposit.isnumeric()):
+                                                    client_acct, result, new_bal = (client_acct.deposit(float(client_deposit)))
+                                                    # Deposit amount validated; success
+                                                    if (result == "020"):
+                                                        client_conn.sendall(str(new_bal).encode("utf-8"))
+                                                        break
+                                                    # Deposit amount validated; failure
+                                                    elif(result == "021"):
+                                                        # Failure by result of incorrect deposit amount format
+                                                        client_conn.sendall(result.encode("utf-8"))
+                                                        continue
+                                                else: 
+                                                    # Deposit amount != numbers
+                                                    client_conn.sendall("024".encode("utf-8"))
+                                                    continue
+
+                        elif (client_request.isnumeric() and len(client_request) == 3):
+                        
                         # Client request: Withdraw
-                        elif(client_request == "130"):
-                            client_acct = get_acct(client_acct_num)
-                            if client_acct != False:
-                                client_bal = str(client_acct.acct_balance)
-                                client_conn.send(client_bal.encode("utf-8"))
-                                # Validates client withdrawal amount
-                                while True:
-                                    client_withdraw = client_conn.recv(1024)
-                                    client_withdraw = (client_withdraw.decode("utf-8"))
-                                    if (client_withdraw.isnumeric()):
-                                        client_acct, result, new_bal = (client_acct.withdraw(float(client_withdraw)))
-                                        # Withdrawal amount validated; success
-                                        if (result == "020"):
-                                            client_conn.sendall(str(new_bal).encode("utf-8"))
-                                            break
-                                        # Withdrawal amount validated; failure
-                                        elif(result == "021"):
-                                            # Failure by result of incorrect withdrawl amount format
-                                            client_conn.sendall(result.encode("utf-8"))
+                            if(client_request == "130"):
+                                client_acct = get_acct(client_acct_num)
+                                if client_acct != False:
+                                    client_bal = str(client_acct.acct_balance)
+                                    client_conn.send(client_bal.encode("utf-8"))
+                                    # Validates client withdrawal amount
+                                    while True:
+                                        client_withdraw = client_conn.recv(1024)
+                                        client_withdraw = (client_withdraw.decode("utf-8"))
+                                        if (client_withdraw.isnumeric()):
+                                            client_acct, result, new_bal = (client_acct.withdraw(float(client_withdraw)))
+                                            # Withdrawal amount validated; success
+                                            if (result == "020"):
+                                                client_conn.sendall(str(new_bal).encode("utf-8"))
+                                                break
+                                            # Withdrawal amount validated; failure
+                                            elif(result == "021"):
+                                                # Failure by result of incorrect withdrawl amount format
+                                                client_conn.sendall(result.encode("utf-8"))
+                                                continue
+                                            elif(result == "022"):
+                                                # Failure by overdraft request
+                                                client_conn.sendall(result.encode("utf-8"))
+                                        else: 
+                                            # Deposit amount != numbers
+                                            client_conn.sendall("024".encode("utf-8"))
                                             continue
-                                        elif(result == "022"):
-                                            # Failure by overdraft request
-                                            client_conn.sendall(result.encode("utf-8"))
-                                    else: 
-                                        # Deposit amount != numbers
-                                        client_conn.sendall("024".encode("utf-8"))
-                                        continue
-                        # Client exits ATM
-                        elif(client_request == "140"):
-                            break
+                            # Client exits ATM
+                            elif(client_request == "140"):
+                                break
                     break
                 elif code == "202" : 
                     print("The account number did not match the pin.")
-                    break
+                    continue
                 elif code == "203" :
                     print("The account does not exist.")
-                    break
-            # Closes connection socket with the client
+                    continue
+                # Closes connection socket with the client
             client_conn.close()
             print("Connection to client has been closed.")
             #Closes server socket
