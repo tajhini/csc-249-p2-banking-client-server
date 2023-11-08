@@ -52,14 +52,14 @@ def get_login_info():
     return acct_num, pin
 
 
-
-
 def process_deposit(sock):
     """ """
     bal = get_acct_balance(sock)
+    request_code = "110"
     while True:
         amt = (input(f"How much would you like to deposit? (You have ${bal} available) "))
-        send_to_server(sock, amt)
+        msg = request_code + "|" + amt
+        send_to_server(sock, msg)
         new_bal = get_from_server(sock)
         if (new_bal == "021"):
             print("Incorrect format entered.")
@@ -71,15 +71,16 @@ def process_deposit(sock):
     return
 
 def get_acct_balance(sock):
-    get_from_server(sock)
     bal = get_from_server(sock);
     return bal
 
 def process_withdrawal(sock):
+    request_code = "130"
     bal = get_acct_balance(sock)
     while True:
         amt = (input(f"How much would you like to withdraw? (You have ${bal} available) "))
-        send_to_server(sock, amt)
+        msg = request_code + "|" + amt
+        send_to_server(sock, msg)
         new_bal = get_from_server(sock)
         if (new_bal == "021"):
             print("Incorrect format entered.")
@@ -106,7 +107,7 @@ def process_customer_transactions(sock):
             send_to_server(sock, "140")
             break
         elif req == 'd':
-            send_to_server(sock, "110")
+            #send_to_server(sock, "110")
             process_deposit(sock)
 
         elif req == 'b':
@@ -114,7 +115,7 @@ def process_customer_transactions(sock):
             bal = (get_acct_balance(sock))
             print(f"Your balance is: ${round(float(bal), 2)}")
         else:
-            send_to_server(sock, "130")
+            #send_to_server(sock, "130")
             process_withdrawal(sock)
 
 def run_atm_core_loop(sock):
@@ -153,10 +154,9 @@ def run_network_client():
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((HOST, PORT))
-            print(get_from_server(s))
+            # print(get_from_server(s))
             run_atm_core_loop(s)
     except Exception as e:
-        print(f"Unable to connect to the banking server - exiting...")
         print(e)
 
 if __name__ == "__main__":

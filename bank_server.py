@@ -5,14 +5,17 @@
 
 import socket
 import selectors
-import threading
 import sys
 import re
+import types
 
 # HOST = "127.0.0.1"      # Standard loopback interface address (localhost)
 # PORT = 65432            # Port to listen on (non-privileged ports are > 1023)
 ALL_ACCOUNTS = dict()   # initialize an empty dictionary
 ACCT_FILE = "accounts.txt"
+sel = selectors.DefaultSelector()
+client_acct_num = []
+
 
 ##########################################################
 #                                                        #
@@ -142,40 +145,207 @@ def load_all_accounts(acct_file = "accounts.txt"):
 #                                                        #
 ##########################################################
 
-def validate_user_info(client_connection):
+def validate_user_info(client_connection, account_info):
     """ Validates the account information is received in the correct format. Validates the account number an daccount pin in the correct format. """
     # receives account information; account number and account pin split by "|"
-    account_info = client_connection.recv(1024)
+    
     acct_info_format = r"[a-z]{2}-\d{5}[|]\d{4}"
    
-    account_info = account_info.decode("utf-8")
-    pattern_match = re.search(acct_info_format, account_info)
-    #account number and pin in a list.
-    if (pattern_match):
-        account_info = account_info.split("|")
-        account_num = account_info[0]
-        account_pin = account_info[1]
-        account = get_acct(account_num)
-    #make this return account number too
-        if (account != False):
-            if (account.acct_pin == account_pin):
-                client_connection.send("010".encode("utf-8"))
-                return "201", account_num
+    if (account_info):
+        pattern_match = re.search(acct_info_format, account_info)
+        #account number and pin in a list.
+        if (pattern_match):
+            account_info = account_info.split("|")
+            account_num = account_info[0]
+            account_pin = account_info[1]
+            account = get_acct(account_num)
+        #make this return account number too
+            if (account != False):
+                if (account.acct_pin == account_pin):
+                    client_connection.send("010".encode("utf-8"))
+                    return "201", account_num
+                else:
+                    #Account number and PIN do not match.
+                    client_connection.send("011".encode("utf-8"))
+                    return "202", 0
             else:
-                #Account number and PIN do not match.
-                client_connection.send("011".encode("utf-8"))
-                return "202", 0
+                #Account doesn't exist.
+                client_connection.send("012".encode("utf-8"))
+                return "203", 0
         else:
-            #Account doesn't exist.
-            client_connection.send("012".encode("utf-8"))
-            return "203", 0
+            return "204", 0
     else:
-        return "204", 0
+        return "205", 0
 
+def accept_wrapper(sock):
+    client_conn, client_addy = sock.accept()
+    print(f"Accepted connection from {client_conn} at {client_addy}.")
+    client_conn.setblocking(False)
+    data = types.SimpleNamespace(addr = client_addy, inb=b"", outb =b"")
+    sel.register(client_conn, selectors.EVENT_READ , data=data)
+   
+    
+def service_connection(key, mask):
+    sock = key.fileobj
+    data = key.data
+    mask = selectors.EVENT_READ
+    try:
+        recv_data = sock.recv(1024)  
+        if recv_data:
+            client_data = recv_data.decode("utf-8")
+            return client_data
+        else:
+            print(f"Closing connection to {data.addr}")
+            sel.unregister(sock)
+            sock.close()
+            return ""
+    except socket.error as e:
+        print(e)
+        return ""
+    
+            # Do something to confirm this is not the error you are looking for
+              # Try again later
+    # if mask & selectors.EVENT_READ:    
+    #         #problem
+    #         recv_data = sock.recv(1024)
+            
+            
+    #         client_data = recv_data.decode("utf-8")
+    #         #transaction(sock, client_data) 
+    #         print(client_data)
+    #         return client_data
+            
+    # else:
+    #     (f"Closing connection to{data.client_addy}")
+    #     sel.unregister(sock)
+    #     sock.close()
+    #     return ""
+    
+         
+def send_to_client(key, mask):
+    sock = key.fileobj
+    data = key.data
+    #| selectors.EVENT_WRITE
+    try:
+        msg = data.outb
+        sock.send(msg)
+    except Exception as e:
+        print(e)
+    
+    return ""
+
+def bal_req(acct_num, key, mask):
+    data = key.data
+    mask = selectors.EVENT_WRITE
+
+    client_acct = get_acct(acct_num)
+    if client_acct != False:
+        client_bal = str(client_acct.acct_balance)
+        data.outb = client_bal.encode("utf-8")
+        send_to_client(key, mask)
+
+def deposit_req(acct_num, conn, client_deposit, key, mask):
+        bal_req(acct_num, key, mask)
+        # Validates client deposit amount
+        mask = selectors.EVENT_READ
+        while True:
+            if (client_deposit.isnumeric()):
+                client_acct, result, new_bal = (acct_num.deposit(float(client_deposit)))
+                # Deposit amount validated; success
+                if (result == "020"):
+                    conn.sendall(str(new_bal).encode("utf-8"))
+                    break
+                # Deposit amount validated; failure
+                elif(result == "021"):
+                    # Failure by result of incorrect deposit amount format
+                    conn.sendall(result.encode("utf-8"))
+                    continue
+            else: 
+                # Deposit amount != numbers
+                conn.sendall("024".encode("utf-8"))
+                continue
+
+def withdrawl_req(acct_num, conn, client_withdraw, key, mask):
+        bal_req(acct_num, key, mask)
+        while True:
+            if (client_withdraw.isnumeric()):
+                client_acct, result, new_bal = (acct_num.withdraw(float(client_withdraw)))
+                # Withdrawal amount validated; success
+                if (result == "020"):
+                    conn.sendall(str(new_bal).encode("utf-8"))
+                    break
+                # Withdrawal amount validated; failure
+                elif(result == "021"):
+                    # Failure by result of incorrect withdrawl amount format
+                    conn.sendall(result.encode("utf-8"))
+                    continue
+                elif(result == "022"):
+                    # Failure by overdraft request
+                    conn.sendall(result.encode("utf-8"))
+            else: 
+                # Deposit amount != numbers
+                conn.sendall("024".encode("utf-8"))
+                continue
+
+# def process_data(client_data):
+#     dep_withd_regex = r"\d{3}+"
+#     client_valid_regex = r"[a-z]{2}-\d{5}[|]\d{4}"
+#     exit_bal_regex = r"\d{3}"
+
+#     if (client_data):
+#         dep_withd_match = re.search(dep_withd_regex, client_data)
+#         client_valid_match = re.search(client_valid_regex, client_data)
+#         exit_bal_match = re.search(exit_bal_regex, client_data)
+
+    
+                        
+def transaction(key, mask):
+        client_conn = key.fileobj
+        while True:
+                processed_data = service_connection(key, mask)
+                valid_code, client_acct_num = validate_user_info(client_conn, processed_data)
+                if (valid_code == "201"):
+                    while True:
+                        client_request = service_connection(key, mask)
+                        if (len(client_request) > 3):
+                            client_request_regex = r"\d{3}|\d+"
+                            client_request_match = re.search(client_request_regex, client_request)
+                            if (client_request_match):
+                                client_request.split("|")
+                                client_req_code = client_request[0]
+                                amt = client_request[1]
+                                    # Client request: Deposit
+                                if (client_req_code == "110"):
+                                    mask = selectors.EVENT_WRITE
+                                    deposit_req(client_acct_num, client_conn, amt, key, mask)
+                            # Client request: Withdraw
+                                elif(client_req_code == "130"):
+                                    withdrawl_req(client_acct_num, client_conn, amt, key, mask)
+        
+                        else:
+                        # Client request: Balance
+                            if (client_request == "120"):
+                                bal_req(client_acct_num, key, mask)
+                            # Client exits ATM
+                            elif(client_request == "140"):
+                                break
+                    break
+                elif valid_code == "202" : 
+                    print("The account number did not match the pin.")
+                    continue
+                elif valid_code == "203" :
+                    print("The account does not exist.")
+                    continue
+                # Closes connection socket with the client
+        sel.unregister(client_conn)
+        client_conn.close()
+        print("Connection to client has been closed.")
+                #Closes server socket
 
 def run_network_server():
     """ Runs the server.
     """
+
     # Gets the ip address of the local machine.
     try:
         host = socket.gethostbyname(socket.gethostname())
@@ -193,103 +363,21 @@ def run_network_server():
             # Listening for incoming connections
             serv_sock.listen()
             print(f"Listening on {host}:{port}")
-            # Accepting any incoming connections
-            client_conn, client_addy = serv_sock.accept()
-            print(f"Accepted connection from {client_conn} at {client_addy}.")
-            # Sends instructions to the client
-            instructions = "You have connected to the ATM Server."
-            client_conn.send(instructions.encode("utf-8"))
-            #Core server loop
-            while True:
-                # Validates user information and returns success/failure codes
-                code, client_acct_num = validate_user_info(client_conn)
-                # Client account information is successfully validated
-                if (code == "201"):
-                    while True:
-                        client_request = client_conn.recv(1024)
-                        client_request = client_request.decode("utf-8")
-                        client_request_regex = r"\d{3}+"
-                        client_request_match = re.search(client_request_regex, client_request)
-                        if (client_request_match):
-                            print(f"Request successfully recieved from client.")
-                            client_conn.send("030".encode("utf-8"))
-                        # Client request: Balance
-                            if (client_request == "120"):
-                                client_acct = get_acct(client_acct_num)
-                                if client_acct != False:
-                                    client_bal = str(client_acct.acct_balance)
-                                    client_conn.send(client_bal.encode("utf-8"))
-                                # Client request: Deposit
-                            elif (client_request == "110"):
-                                    client_acct = get_acct(client_acct_num)
-                                    if client_acct != False:
-                                        client_bal = str(client_acct.acct_balance)
-                                        client_conn.send(client_bal.encode("utf-8"))
-                                        # Validates client deposit amount
-                                        while True:
-                                            client_deposit = client_conn.recv(1024)
-                                            client_deposit = (client_deposit.decode("utf-8"))
-                                            if (client_deposit.isnumeric()):
-                                                client_acct, result, new_bal = (client_acct.deposit(float(client_deposit)))
-                                                # Deposit amount validated; success
-                                                if (result == "020"):
-                                                    client_conn.sendall(str(new_bal).encode("utf-8"))
-                                                    break
-                                                # Deposit amount validated; failure
-                                                elif(result == "021"):
-                                                    # Failure by result of incorrect deposit amount format
-                                                    client_conn.sendall(result.encode("utf-8"))
-                                                    continue
-                                            else: 
-                                                # Deposit amount != numbers
-                                                client_conn.sendall("024".encode("utf-8"))
-                                                continue
 
-                        # Client request: Withdraw
-                            if(client_request == "130"):
-                                client_acct = get_acct(client_acct_num)
-                                if client_acct != False:
-                                    client_bal = str(client_acct.acct_balance)
-                                    client_conn.send(client_bal.encode("utf-8"))
-                                    # Validates client withdrawal amount
-                                    while True:
-                                        client_withdraw = client_conn.recv(1024)
-                                        client_withdraw = (client_withdraw.decode("utf-8"))
-                                        if (client_withdraw.isnumeric()):
-                                            client_acct, result, new_bal = (client_acct.withdraw(float(client_withdraw)))
-                                            # Withdrawal amount validated; success
-                                            if (result == "020"):
-                                                client_conn.sendall(str(new_bal).encode("utf-8"))
-                                                break
-                                            # Withdrawal amount validated; failure
-                                            elif(result == "021"):
-                                                # Failure by result of incorrect withdrawl amount format
-                                                client_conn.sendall(result.encode("utf-8"))
-                                                continue
-                                            elif(result == "022"):
-                                                # Failure by overdraft request
-                                                client_conn.sendall(result.encode("utf-8"))
-                                        else: 
-                                            # Deposit amount != numbers
-                                            client_conn.sendall("024".encode("utf-8"))
-                                            continue
-                            # Client exits ATM
-                            elif(client_request == "140"):
-                                break
-                    break
-                elif code == "202" : 
-                    print("The account number did not match the pin.")
-                    continue
-                elif code == "203" :
-                    print("The account does not exist.")
-                    continue
-                # Closes connection socket with the client
-            client_conn.close()
-            print("Connection to client has been closed.")
-            #Closes server socket
-            serv_sock.close()
-    except:
-        print('Failed to create socket:(')
+            serv_sock.setblocking(False)
+            sel.register(serv_sock, selectors.EVENT_READ, data=None)
+            
+            while True:
+                events = sel.select(timeout=None)
+                for key, mask in events:
+                    if key.data is None:
+                        accept_wrapper(key.fileobj)
+                    else:
+                        transaction(key, mask)
+                    
+           
+    except Exception as e:
+        print(e)
         sys.exit()
 
 
