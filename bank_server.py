@@ -145,26 +145,25 @@ def load_all_accounts(acct_file = "accounts.txt"):
 ##########################################################
 
 def validate_user_info(acct_num, acct_pin, key):
-    """ Validates the account information is received in the correct format. Validates the account number an daccount pin in the correct format. """
-    # receives account information; account number and account pin split by "|"
+    """ Validates the account information is received in the correct format. Validates the account number and account pin in the correct format. """
     
     account = get_acct(acct_num)
     
-
     if (client_duplicate_log(key, acct_num) == False):
 
         if (account != False):
             if (account.acct_pin == acct_pin):
                 #client_acct_num.append(account.acct_number)
-                return "VALID"
+                return "040"
             else:
                 #Account number and PIN do not match.
-                return "ERR: NOMATCH"
+                return "041"
         else:
             #Account doesn't exist.
-            return "ERR: NOT FND"
+            return "042"
     else:
-        close_conn(key)
+
+        return "043"  
 
 
 def accept_wrapper(sock):
@@ -194,10 +193,10 @@ def deposit_req(acct_num, client_deposit):
                 # Deposit amount validated; failure
                 elif(result == "021"):
                     # Failure by result of incorrect deposit amount format
-                    return "ERR: FORMAT"
+                    return "030"
         else: 
             # Deposit amount != numbers
-            return "ERR: FORMAT"
+            return "030"
 
 
 def withdrawl_req(acct_num, client_withdraw):
@@ -212,44 +211,55 @@ def withdrawl_req(acct_num, client_withdraw):
                 # Withdrawal amount validated; failure
                 elif(result == "021"):
                     # Failure by result of incorrect withdrawl amount format
-                    return "ERR: FORMAT"
+                    return "030"
 
                 elif(result == "022"):
                     # Failure by overdraft request
-                    return "ERR: OVERDRAFT"
+                    return "031"
         else: 
             # Deposit amount != numbers
-            return "ERR: FORMAT"
+            return "030"
 
 
 def process_msg(msg, key):
+    """ Processes differnt messages from the client
+    :param key: A registered object
+    :param message: A message from the client
+    """ 
     client_conn = key.fileobj
 
-
+    #Regexes
     login_reg = r"[L][O][G]\s[a-z]{2}-\d{5}\s\d{4}"
     bal_code = "BAL"
     withdrw_reg = r"[W][D]\s\d+"
     dep_reg = r"[D][E][P]\s\d+"
     exit_code = "EXIT"
-    #login
+    
+    #Login
     if (re.search(login_reg, msg)):
         msg = msg.split(" ")
         acct_num = msg[1]
         acct_pin = msg[2]
         validation = validate_user_info(acct_num, acct_pin, key)
-        return validation
-    #Balance
+        if (validation == "043"):
+            data = key.data
+            print(f"Closing connection to {data.addr}")
+            sel.unregister(client_conn)
+            client_conn.close()  
+        else:
+            return validation
+    # Balance
     elif (msg == bal_code):
         client_acct_num = list(client_dict.keys())[list(client_dict.values()).index(client_conn)]
         return bal_req(client_acct_num)
-    #Withdraw
+    # Withdraw
     elif (re.search(withdrw_reg, msg)):
         msg = msg.split(" ")
         amt = msg[1]
         client_acct_num = list(client_dict.keys())[list(client_dict.values()).index(client_conn)]
         new_bal = withdrawl_req(client_acct_num, amt)
         return new_bal
-    #Deposit
+    # Deposit
     elif (re.search(dep_reg, msg)):
         msg = msg.split(" ")
         amt = msg[1]
@@ -257,48 +267,69 @@ def process_msg(msg, key):
         new_bal = deposit_req(client_acct_num, amt)
         return new_bal
 
-    #exit 
+    # Exit 
     elif(msg == exit_code):
         close_conn(key)
    
     else:
-        return "ERR: NOTRECOG"
-    #not recognised
+        #not recognised
+        return "050"
 
 def close_conn(key) :
+    """ Closes a client connection.
+    :param key: A registered object
+    """  
     client_conn = key.fileobj
     data = key.data
+    # Gets acct_num related to a connection
     client_acct_num = list(client_dict.keys())[list(client_dict.values()).index(client_conn)]
+    # Removes it from list of connected clients
     client_dict.pop(client_acct_num)
     print(f"Closing connection to {data.addr}")
     sel.unregister(client_conn)
     client_conn.close()  
 
 def transaction(key):
-        client_conn = key.fileobj
-        client_message = client_conn.recv(1024)  # Should be ready to read
-        if client_message:
-            processed_data = process_msg(client_message.decode("utf-8"), key)
-            if (processed_data):
-                client_conn.sendall(processed_data.encode("utf-8"))
-        else:
+    """ Receives, processes and sends messages between clients.
+    :param key: A registered object
+    """  
+        
+    # Client specific socket
+    client_conn = key.fileobj
+    # Receives client's request
+    client_message = client_conn.recv(1024)  
+    # Client message handling
+    if client_message:
+        processed_data = process_msg(client_message.decode("utf-8"), key)
+        #Drops clients that sends unrecognisable and potentionall harmful messages
+        if (processed_data == "050"):
             close_conn(key)
+        if (processed_data):
+            client_conn.sendall(processed_data.encode("utf-8"))
+    else:
+        # Closes the client connection if no message
+        close_conn(key)
 
 def connect_obj(key, acct_num):
+    """ Adds a client_coon, account pair to the dictionary of active clients.
+    :param key: A registered object
+    :return acct_num: The account number of the client
+    """
     client_conn = key.fileobj
     client_dict[acct_num] = client_conn
 
 
 def client_duplicate_log(key, acct_num):
+    """ Checks is a client with an account number is currently on the server.
+    :param key: A registered object
+    :return acct_num: The account number of the client
+    """
     all_accts_active = list(client_dict.keys())
     if (acct_num in all_accts_active):
         return True
     else:
         connect_obj(key, acct_num)
         return False
-
-    
-
 
 def run_network_server():
     """ Runs the server.
@@ -320,24 +351,23 @@ def run_network_server():
             # Listening for incoming connections
             serv_sock.listen()
             print(f"Listening on {host}:{port}")
-
+            # Creats a non blocking socket
             serv_sock.setblocking(False)
+            #Registers the socket with the selector
             sel.register(serv_sock, selectors.EVENT_READ, data=None)
+        
+
+            while True:
+                events = sel.select(timeout=None)
+                for key, mask in events:
+                    if key.data is None:
+                        accept_wrapper(key.fileobj)
+                    else:
+                        transaction(key)
             
-            try:
-                while True:
-                    events = sel.select(timeout=None)
-                    for key, mask in events:
-                        if key.data is None:
-                            accept_wrapper(key.fileobj)
-                        else:
-                            transaction(key)
-            except KeyboardInterrupt:
-                print("Caught keyboard interrupt, exiting")
-            finally:
-                sel.close()
 
     except Exception as e:
+        print(e)
         sys.exit()
     
 
