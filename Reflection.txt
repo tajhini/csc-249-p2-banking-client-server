@@ -8,3 +8,4 @@ https://www.geeksforgeeks.org/python-get-key-from-value-in-dictionary/
 https://regexone.com/lesson/matching_characters#:~:text=There%20is%20a%20method%20for,c%20letter%20and%20nothing%20else.
 https://realpython.com/python-sockets/#multi-connection-server
 https://mathspp.com/blog/til/022
+https://www.rfc-editor.org/rfc/rfc5234#section-2.1

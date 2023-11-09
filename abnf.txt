@@ -1,0 +1,9 @@
+
+client-message = request-code / request-code SP amount /
+
+request-code = 2ALPHA / 3ALPHA / 4ALPHA
+amount = *DIGIT
+
+server-message = error-success-code / amount
+error-success-code = 3DIGIT
+amount = *DIGIT "." 2DIGIT
