@@ -24,7 +24,7 @@ def get_from_server(sock):
 
 def login_to_server(sock, acct_num, pin):
     """ Attempt to login to the bank server. Pass acct_num and pin, get response, parse and check whether login was successful. """
-    account_info = str(acct_num) + "|" + str(pin) #change thisss.
+    account_info = "LOG" + " " + str(acct_num) + " " + str(pin) #change thisss.
     send_to_server(sock, account_info)
     validated = (get_from_server(sock))
     return validated
@@ -54,14 +54,14 @@ def get_login_info():
 
 def process_deposit(sock):
     """ """
+    request_code = "DEP"
     bal = get_acct_balance(sock)
-    request_code = "110"
     while True:
         amt = (input(f"How much would you like to deposit? (You have ${bal} available) "))
-        msg = request_code + "|" + amt
+        msg = request_code + " " + amt
         send_to_server(sock, msg)
         new_bal = get_from_server(sock)
-        if (new_bal == "021"):
+        if (new_bal == "ERR: FORMAT"):
             print("Incorrect format entered.")
             continue
         else:
@@ -71,21 +71,22 @@ def process_deposit(sock):
     return
 
 def get_acct_balance(sock):
+    send_to_server(sock, "BAL")
     bal = get_from_server(sock);
     return bal
 
 def process_withdrawal(sock):
-    request_code = "130"
+    request_code = "WD"
     bal = get_acct_balance(sock)
     while True:
         amt = (input(f"How much would you like to withdraw? (You have ${bal} available) "))
-        msg = request_code + "|" + amt
+        msg = request_code + " " + amt
         send_to_server(sock, msg)
         new_bal = get_from_server(sock)
-        if (new_bal == "021"):
+        if (new_bal == "ERR: FORMAT"):
             print("Incorrect format entered.")
             continue
-        elif (new_bal == "023"):
+        elif (new_bal == "ERR: OVERDRAFT"):
             print("Insufficient Funds.")
             break
         else: 
@@ -104,18 +105,15 @@ def process_customer_transactions(sock):
             continue
         if req == 'x':
             # if customer wants to exit, break out of the loop
-            send_to_server(sock, "140")
+            send_to_server(sock, "EXIT")
             break
         elif req == 'd':
-            #send_to_server(sock, "110")
             process_deposit(sock)
 
         elif req == 'b':
-            send_to_server(sock, "120")
             bal = (get_acct_balance(sock))
             print(f"Your balance is: ${round(float(bal), 2)}")
         else:
-            #send_to_server(sock, "130")
             process_withdrawal(sock)
 
 def run_atm_core_loop(sock):
@@ -123,16 +121,19 @@ def run_atm_core_loop(sock):
     while True:
         acct_num, pin = get_login_info()
         validated = login_to_server(sock, acct_num, pin)
-        if validated == "010":
+        if validated == "VALID":
             print("Thank you, your credentials have been validated.")
             process_customer_transactions(sock)
             print("ATM session terminating.")
             return True
-        elif validated == "011":
+        elif validated == "ERR: NO MATCH":
             print("Account number and PIN do not match. Retry login.")
             continue
-        elif validated == "012":
+        elif validated == "ERR: NOT FND":
             print("Account doesn't exist. Retry login.")
+            continue
+        elif validated == "ERR: NOTRECOG":
+            print("Invalid Entry")
             continue
 
     
